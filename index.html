@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VISION LAB PRO</title>
+<style>
+/* ─── RESET & BASE ─────────────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;background:#04050a;overflow:hidden;
+  font-family:'Courier New',monospace;user-select:none;-webkit-user-select:none;color:#fff}
+
+/* ─── CSS VARIABLES ─────────────────────────────────────────────────────── */
+:root{
+  --c-green:#00ffb4;--c-cyan:#00d4ff;--c-purple:#b060ff;--c-red:#ff4060;
+  --c-bg:#04050a;--c-bg2:#080b14;--c-panel:#0c0f1a;
+  --c-border:rgba(0,255,180,0.12);--c-border2:rgba(0,212,255,0.15);
+  --tab-h:48px;--bar-h:44px;
+}
+
+/* ─── APP LAYOUT ─────────────────────────────────────────────────────── */
+#app{display:flex;flex-direction:column;width:100%;height:100vh;background:var(--c-bg)}
+
+/* ─── HEADER ─────────────────────────────────────────────────────────── */
+#header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;height:42px;background:var(--c-panel);
+  border-bottom:1px solid var(--c-border);flex-shrink:0;
+  position:relative;z-index:20
+}
+#logo{
+  font-size:13px;font-weight:900;letter-spacing:3px;
+  background:linear-gradient(90deg,var(--c-green),var(--c-cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text
+}
+#hud-row{display:flex;gap:10px;align-items:center}
+#fps-badge{
+  font-size:10px;letter-spacing:1px;color:var(--c-cyan);
+  border:1px solid rgba(0,212,255,0.3);padding:2px 8px;border-radius:2px;
+  background:rgba(0,212,255,0.06);min-width:62px;text-align:center
+}
+#status-badge{
+  font-size:10px;letter-spacing:1px;color:var(--c-green);
+  border:1px solid rgba(0,255,180,0.3);padding:2px 10px;border-radius:2px;
+  background:rgba(0,255,180,0.06);max-width:180px;overflow:hidden;
+  white-space:nowrap;text-overflow:ellipsis
+}
+#cam-flip{
+  background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);
+  width:28px;height:28px;border-radius:3px;cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;transition:all 0.15s
+}
+#cam-flip:hover{border-color:var(--c-cyan);color:var(--c-cyan)}
+
+/* ─── TAB BAR ─────────────────────────────────────────────────────────── */
+#tabs{
+  display:flex;height:var(--tab-h);background:var(--c-panel);
+  border-bottom:1px solid var(--c-border);flex-shrink:0
+}
+.tab{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  font-size:clamp(9px,2vw,11px);letter-spacing:1.5px;text-transform:uppercase;
+  cursor:pointer;border-bottom:2px solid transparent;
+  color:rgba(255,255,255,0.35);transition:all 0.2s;gap:6px;
+  border-right:1px solid var(--c-border)
+}
+.tab:last-child{border-right:none}
+.tab svg{opacity:0.4;transition:opacity 0.2s}
+.tab.active{color:var(--c-green);border-bottom-color:var(--c-green);background:rgba(0,255,180,0.04)}
+.tab.active svg{opacity:1}
+.tab:hover:not(.active){color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.03)}
+
+/* ─── STAGE (video area) ─────────────────────────────────────────────── */
+#stage{
+  position:relative;flex:1;min-height:0;overflow:hidden;background:#000
+}
+#vid{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  object-fit:cover;transform:scaleX(-1);display:block
+}
+/* Layer order: video < canvas-bg < canvas-draw < canvas-overlay < 3d-canvas */
+.layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#cv-bg{z-index:1}   /* persistent drawing / fx */
+#cv-draw{z-index:2} /* real-time drawing (tab1) */
+#cv-over{z-index:3} /* skeleton/hud overlays */
+#three-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:4;display:none}
+
+/* ─── CONTROL BAR ────────────────────────────────────────────────────── */
+#ctrlbar{
+  display:flex;flex-wrap:nowrap;gap:5px;padding:6px 10px;
+  background:var(--c-panel);border-top:1px solid var(--c-border);
+  flex-shrink:0;overflow-x:auto;align-items:center;height:var(--bar-h);
+  scrollbar-width:none
+}
+#ctrlbar::-webkit-scrollbar{display:none}
+.ctrl-btn{
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);
+  color:rgba(255,255,255,0.55);padding:4px 12px;border-radius:3px;
+  font-size:10px;cursor:pointer;font-family:'Courier New',monospace;
+  letter-spacing:1px;text-transform:uppercase;transition:all 0.15s;white-space:nowrap;
+  flex-shrink:0
+}
+.ctrl-btn:hover{background:rgba(255,255,255,0.1);color:#fff}
+.ctrl-btn.active{background:rgba(0,255,180,0.12);border-color:rgba(0,255,180,0.5);color:var(--c-green)}
+.ctrl-btn.danger{border-color:rgba(255,60,60,0.3);color:rgba(255,100,100,0.8)}
+.ctrl-btn.danger:hover{background:rgba(255,60,60,0.12)}
+
+/* Color palette (Tab 1) */
+#palette{display:flex;gap:5px;align-items:center;flex-shrink:0}
+.swatch{
+  width:22px;height:22px;border-radius:50%;cursor:pointer;
+  border:2px solid transparent;transition:transform 0.15s,border-color 0.15s;flex-shrink:0
+}
+.swatch.active{border-color:#fff;transform:scale(1.2)}
+#brush-size{
+  -webkit-appearance:none;appearance:none;width:60px;height:3px;
+  background:rgba(255,255,255,0.2);border-radius:2px;cursor:pointer;flex-shrink:0
+}
+#brush-size::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
+  background:var(--c-green);cursor:pointer
+}
+
+/* ─── START SCREEN ───────────────────────────────────────────────────── */
+#start-screen{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 30%,#0a0020 0%,#04050a 70%);
+  z-index:100;gap:18px
+}
+.start-logo{
+  font-size:clamp(32px,7vw,56px);font-weight:900;letter-spacing:-2px;line-height:1;
+  background:linear-gradient(135deg,var(--c-green) 0%,var(--c-cyan) 50%,var(--c-purple) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  text-align:center
+}
+.start-sub{
+  color:rgba(255,255,255,0.35);font-size:clamp(10px,2vw,13px);
+  text-align:center;max-width:320px;line-height:1.8;letter-spacing:0.5px
+}
+.scanlines{
+  position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,180,0.015) 3px,rgba(0,255,180,0.015) 4px);
+  pointer-events:none;animation:scanSlide 6s linear infinite
+}
+@keyframes scanSlide{to{background-position:0 40px}}
+#start-btn{
+  background:linear-gradient(135deg,rgba(0,255,180,0.15),rgba(0,212,255,0.15));
+  border:1px solid rgba(0,255,180,0.5);color:var(--c-green);
+  padding:13px 44px;border-radius:3px;font-size:13px;cursor:pointer;
+  font-family:'Courier New',monospace;letter-spacing:3px;text-transform:uppercase;
+  transition:all 0.2s
+}
+#start-btn:hover{background:linear-gradient(135deg,rgba(0,255,180,0.28),rgba(0,212,255,0.28));
+  box-shadow:0 0 40px rgba(0,255,180,0.25);transform:translateY(-1px)}
+.feature-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
+  max-width:340px;width:90%
+}
+.feat-item{
+  border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);
+  padding:10px 8px;border-radius:4px;text-align:center
+}
+.feat-icon{font-size:18px;margin-bottom:4px}
+.feat-label{font-size:9px;letter-spacing:1px;color:rgba(255,255,255,0.4);text-transform:uppercase}
+
+/* ─── LOADING SCREEN ─────────────────────────────────────────────────── */
+#load-screen{
+  position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;background:var(--c-bg);z-index:99;gap:12px
+}
+#load-msg{color:rgba(0,255,180,0.75);font-size:11px;letter-spacing:2px;text-transform:uppercase}
+#load-bar{width:min(260px,68vw);height:2px;background:rgba(255,255,255,0.08);border-radius:1px;overflow:hidden}
+#load-fill{height:100%;background:linear-gradient(90deg,var(--c-green),var(--c-cyan));
+  width:0%;transition:width 0.5s ease;border-radius:1px}
+#load-pct{color:rgba(255,255,255,0.3);font-size:10px;letter-spacing:1px}
+
+/* ─── GESTURE HINTS ──────────────────────────────────────────────────── */
+#gesture-hint{
+  position:absolute;bottom:10px;right:10px;z-index:10;
+  background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.1);
+  border-radius:4px;padding:8px 12px;font-size:9px;letter-spacing:1px;
+  color:rgba(255,255,255,0.4);line-height:1.8;pointer-events:none
+}
+
+/* ─── 3D GESTURE LABELS ──────────────────────────────────────────────── */
+#gesture-label{
+  position:absolute;top:10px;right:10px;z-index:15;
+  background:rgba(0,0,0,0.7);border:1px solid rgba(176,96,255,0.3);
+  border-radius:3px;padding:4px 10px;font-size:10px;letter-spacing:1px;
+  color:var(--c-purple);pointer-events:none;display:none
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- HEADER -->
+  <div id="header">
+    <div id="logo">VISION LAB PRO</div>
+    <div id="hud-row">
+      <div id="fps-badge">-- FPS</div>
+      <div id="status-badge">READY</div>
+      <button id="cam-flip" title="Flip Camera">⇄</button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div id="tabs">
+    <div class="tab active" data-tab="0">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6l-6 7 6 7v-5h4v-9z"/><path d="M10 6H4v12h6"/></svg>
+      HAND DRAW
+    </div>
+    <div class="tab" data-tab="1">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      3D GESTURE
+    </div>
+    <div class="tab" data-tab="2">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><path d="M12 7v8M9 14l3 4 3-4M9 10H7M17 10h-2"/></svg>
+      BODY TRACK
+    </div>
+  </div>
+
+  <!-- STAGE -->
+  <div id="stage">
+    <video id="vid" playsinline autoplay muted></video>
+    <canvas id="cv-bg" class="layer"></canvas>
+    <canvas id="cv-draw" class="layer"></canvas>
+    <canvas id="cv-over" class="layer"></canvas>
+    <canvas id="three-canvas" class="layer"></canvas>
+    <div id="gesture-hint"></div>
+    <div id="gesture-label">IDLE</div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen">
+      <div class="scanlines"></div>
+      <div class="start-logo">VISION<br>LAB PRO</div>
+      <div class="feature-grid">
+        <div class="feat-item"><div class="feat-icon">✋</div><div class="feat-label">Hand Draw</div></div>
+        <div class="feat-item"><div class="feat-icon">🎲</div><div class="feat-label">3D Gesture</div></div>
+        <div class="feat-item"><div class="feat-icon">🦾</div><div class="feat-label">Body Track</div></div>
+      </div>
+      <div class="start-sub">Real-time AI tracking · MediaPipe · Three.js<br>Works on desktop & mobile</div>
+      <button id="start-btn">INITIALIZE CAMERA</button>
+    </div>
+
+    <!-- LOADING SCREEN -->
+    <div id="load-screen">
+      <div id="load-msg">LOADING...</div>
+      <div id="load-bar"><div id="load-fill"></div></div>
+      <div id="load-pct">0%</div>
+    </div>
+  </div>
+
+  <!-- CONTROL BAR -->
+  <div id="ctrlbar">
+    <!-- Tab 0 controls -->
+    <div id="ctrl-tab0" style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+      <div id="palette">
+        <div class="swatch active" style="background:#00ffb4" data-color="#00ffb4"></div>
+        <div class="swatch" style="background:#00d4ff" data-color="#00d4ff"></div>
+        <div class="swatch" style="background:#ff4080" data-color="#ff4080"></div>
+        <div class="swatch" style="background:#ffcc00" data-color="#ffcc00"></div>
+        <div class="swatch" style="background:#ff6a00" data-color="#ff6a00"></div>
+        <div class="swatch" style="background:#ffffff" data-color="#ffffff"></div>
+      </div>
+      <input type="range" id="brush-size" min="2" max="30" value="8">
+      <button class="ctrl-btn active" id="draw-toggle">✏ DRAW</button>
+      <button class="ctrl-btn danger" id="clear-draw">CLEAR</button>
+    </div>
+    <!-- Tab 1 controls -->
+    <div id="ctrl-tab1" style="display:none;gap:5px;align-items:center;flex-shrink:0">
+      <button class="ctrl-btn active" id="obj-cube">■ CUBE</button>
+      <button class="ctrl-btn" id="obj-sphere">● SPHERE</button>
+      <button class="ctrl-btn" id="obj-all">ALL</button>
+      <button class="ctrl-btn danger" id="reset-3d">RESET</button>
+    </div>
+    <!-- Tab 2 controls -->
+    <div id="ctrl-tab2" style="display:none;gap:5px;align-items:center;flex-shrink:0">
+      <button class="ctrl-btn active" id="show-skeleton">SKELETON</button>
+      <button class="ctrl-btn active" id="show-aura">AURA</button>
+      <button class="ctrl-btn active" id="show-labels">LABELS</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script>
+(function(){
+'use strict';
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+const S = {
+  activeTab: 0,
+  isRunning: false,
+  facingMode: 'user',
+  stream: null,
+  handsData: [],
+  poseData: null,
+  // Tab 0
+  drawColor: '#00ffb4',
+  brushSize: 8,
+  isDrawing: true,
+  prevDrawPt: null,
+  drawPts: [],
+  // Tab 1
+  three: null,
+  threeObj: null,
+  threeScene: null,
+  threeRenderer: null,
+  threeCamera: null,
+  gesturePrev: null,
+  gestureLabel: 'IDLE',
+  // Tab 2
+  showSkeleton: true,
+  showAura: true,
+  showLabels: true,
+  // FPS
+  fpsArr: [],
+  lastFrame: performance.now(),
+  // Smoothing buffers
+  handBufs: {},
+  poseBufs: {}
+};
+
+// ─── DOM ───────────────────────────────────────────────────────────────────
+const vid        = document.getElementById('vid');
+const cvBg       = document.getElementById('cv-bg');
+const cvDraw     = document.getElementById('cv-draw');
+const cvOver     = document.getElementById('cv-over');
+const threeCV    = document.getElementById('three-canvas');
+const stage      = document.getElementById('stage');
+const startScr   = document.getElementById('start-screen');
+const loadScr    = document.getElementById('load-screen');
+const loadMsg    = document.getElementById('load-msg');
+const loadFill   = document.getElementById('load-fill');
+const loadPct    = document.getElementById('load-pct');
+const fpsBadge   = document.getElementById('fps-badge');
+const statusBadge= document.getElementById('status-badge');
+const gestureHint= document.getElementById('gesture-hint');
+const gestureLabel= document.getElementById('gesture-label');
+
+let ctxBg, ctxDraw, ctxOver;
+let W = 640, H = 480;
+
+// ─── RESIZE ────────────────────────────────────────────────────────────────
+function resize(){
+  W = stage.offsetWidth || 640;
+  H = stage.offsetHeight || 480;
+  [cvBg, cvDraw, cvOver].forEach(c=>{ c.width=W; c.height=H; });
+  ctxBg   = cvBg.getContext('2d');
+  ctxDraw = cvDraw.getContext('2d');
+  ctxOver = cvOver.getContext('2d');
+  if(S.threeRenderer){
+    S.threeRenderer.setSize(W, H);
+    S.threeCamera.aspect = W/H;
+    S.threeCamera.updateProjectionMatrix();
+  }
+}
+window.addEventListener('resize', ()=>{ resize(); });
+resize();
+
+// ─── HELPERS ───────────────────────────────────────────────────────────────
+// Mirror hand landmark X
+function hLM(lm, i){ const p=lm[i]; return {x:(1-p.x)*W, y:p.y*H}; }
+function pLM(lm, i){ const p=lm[i]; return {x:(1-p.x)*W, y:p.y*H, z:p.z||0}; }
+function dist2(a,b){ return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+// Smooth a point against a buffer (low-pass filter)
+function smoothPt(buf, key, pt, alpha=0.4){
+  if(!buf[key]) buf[key]=Object.assign({},pt);
+  buf[key].x = lerp(buf[key].x, pt.x, alpha);
+  buf[key].y = lerp(buf[key].y, pt.y, alpha);
+  if(pt.z!==undefined) buf[key].z = lerp(buf[key].z||0, pt.z, alpha);
+  return buf[key];
+}
+
+function palmCenter(lm){ const a=hLM(lm,0), b=hLM(lm,9); return {x:(a.x+b.x)/2,y:(a.y+b.y)/2}; }
+function indexTip(lm){ return hLM(lm,8); }
+function thumbTip(lm){ return hLM(lm,4); }
+function pinchDist(lm){ return dist2(hLM(lm,4), hLM(lm,8)); }
+
+// Count fingers extended
+function countFingers(lm){
+  const tips = [8,12,16,20];
+  const mids = [6,10,14,18];
+  let count = 0;
+  for(let i=0;i<4;i++){
+    if(hLM(lm,tips[i]).y < hLM(lm,mids[i]).y) count++;
+  }
+  // thumb
+  if(Math.abs(hLM(lm,4).x - hLM(lm,3).x) > 20) count++;
+  return count;
+}
+
+// ─── TABS ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>switchTab(parseInt(t.dataset.tab)));
+});
+
+function switchTab(n){
+  S.activeTab = n;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===n));
+  document.getElementById('ctrl-tab0').style.display = n===0 ? 'flex' : 'none';
+  document.getElementById('ctrl-tab1').style.display = n===1 ? 'flex' : 'none';
+  document.getElementById('ctrl-tab2').style.display = n===2 ? 'flex' : 'none';
+  threeCV.style.display = n===1 ? 'block' : 'none';
+  if(n===1 && S.threeRenderer) { S.threeRenderer.domElement.style.display='block'; }
+  // Show hint
+  const hints = [
+    '✏ INDEX FINGER = DRAW\n👌 PINCH = STOP DRAW',
+    '✊ GRAB+MOVE  ✌ ROTATE\n🤏 PINCH = SCALE',
+    '📷 STAND BACK FOR FULL BODY\n🦴 SKELETON OVERLAID LIVE'
+  ];
+  gestureHint.textContent = hints[n];
+  // Update status
+  updateStatus();
+}
+
+// ─── STATUS ────────────────────────────────────────────────────────────────
+function updateStatus(){
+  const h = S.handsData.length;
+  const p = !!S.poseData;
+  const msgs = ['SHOW YOUR HANDS','1 HAND DETECTED','2 HANDS DETECTED'];
+  if(S.activeTab===2){
+    statusBadge.textContent = p ? 'BODY DETECTED' : (h>0 ? msgs[h] : 'SHOW FULL BODY');
+    statusBadge.style.color = p ? 'var(--c-green)' : 'rgba(255,200,0,0.9)';
+  } else {
+    statusBadge.textContent = h>0 ? msgs[h] : 'SHOW YOUR HANDS';
+    statusBadge.style.color = h>0 ? 'var(--c-green)' : 'rgba(255,200,0,0.9)';
+  }
+}
+
+// ─── TAB 0: HAND DRAWING ────────────────────────────────────────────────────
+
+// Controls
+document.getElementById('draw-toggle').addEventListener('click',function(){
+  S.isDrawing = !S.isDrawing;
+  this.textContent = S.isDrawing ? '✏ DRAW' : '⏹ PAUSED';
+  this.classList.toggle('active', S.isDrawing);
+});
+document.getElementById('clear-draw').addEventListener('click',()=>{
+  ctxBg.clearRect(0,0,W,H);
+  ctxDraw.clearRect(0,0,W,H);
+  S.drawPts=[];
+});
+document.getElementById('brush-size').addEventListener('input',function(){
+  S.brushSize = parseInt(this.value);
+});
+document.querySelectorAll('.swatch').forEach(sw=>{
+  sw.addEventListener('click',function(){
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    this.classList.add('active');
+    S.drawColor = this.dataset.color;
+  });
+});
+
+// Smooth drawing using cubic interpolation
+let drawBuf = []; // ring of recent points
+
+function renderTab0(){
+  ctxDraw.clearRect(0,0,W,H);
+  // Render skeleton on overlay
+  ctxOver.clearRect(0,0,W,H);
+
+  for(let hi=0;hi<S.handsData.length;hi++){
+    const lm = S.handsData[hi];
+    const tip = indexTip(lm);
+    const smoothed = smoothPt(S.handBufs, `h${hi}_idx`, tip, 0.5);
+    const pd = pinchDist(lm);
+    const isPinching = pd < 40;
+
+    // Draw skeleton
+    drawHandSkeleton(ctxOver, lm, hi, 0.7);
+
+    // Drawing logic: only index finger (not pinching)
+    if(S.isDrawing && !isPinching){
+      if(!drawBuf[hi]) drawBuf[hi]=[];
+      drawBuf[hi].push({x:smoothed.x, y:smoothed.y});
+      if(drawBuf[hi].length > 80) drawBuf[hi].shift();
+    } else {
+      if(drawBuf[hi] && drawBuf[hi].length > 0){
+        // commit buffer to bg canvas
+        flushDrawBuf(hi);
+        drawBuf[hi] = [];
+      }
+    }
+
+    // Draw live stroke
+    if(drawBuf[hi] && drawBuf[hi].length > 1){
+      drawSmoothLine(ctxDraw, drawBuf[hi], S.drawColor, S.brushSize);
+    }
+
+    // Fingertip cursor
+    const cursorR = isPinching ? 5 : S.brushSize/2+3;
+    ctxDraw.beginPath();
+    ctxDraw.arc(smoothed.x, smoothed.y, cursorR, 0, Math.PI*2);
+    ctxDraw.strokeStyle = isPinching ? 'rgba(255,80,80,0.9)' : S.drawColor;
+    ctxDraw.lineWidth = 2;
+    ctxDraw.stroke();
+    if(!isPinching && S.isDrawing){
+      ctxDraw.beginPath();
+      ctxDraw.arc(smoothed.x, smoothed.y, 3, 0, Math.PI*2);
+      ctxDraw.fillStyle = S.drawColor;
+      ctxDraw.fill();
+    }
+  }
+}
+
+function flushDrawBuf(hi){
+  if(!drawBuf[hi] || drawBuf[hi].length<2) return;
+  drawSmoothLine(ctxBg, drawBuf[hi], S.drawColor, S.brushSize);
+}
+
+function drawSmoothLine(ctx, pts, color, size){
+  if(pts.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length-1;i++){
+    const mx = (pts[i].x+pts[i+1].x)/2;
+    const my = (pts[i].y+pts[i+1].y)/2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+  ctx.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  // Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = size*1.5;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ─── TAB 1: 3D GESTURE (Three.js) ─────────────────────────────────────────
+
+const POSE_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
+  [11,12],[11,13],[13,15],[15,17],[15,19],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[18,20],
+  [11,23],[12,24],[23,24],
+  [23,25],[25,27],[27,29],[27,31],[29,31],
+  [24,26],[26,28],[28,30],[28,32],[30,32]
+];
+
+function getSegmentHue(i){
+  if(i<=10) return 60;
+  if([11,12,23,24].includes(i)) return 120;
+  if([11,13,15,17,19,21].includes(i)) return 200;
+  if([12,14,16,18,20,22].includes(i)) return 280;
+  if([23,25,27,29,31].includes(i)) return 30;
+  return 330;
+}
+
+function initThree(){
+  if(typeof THREE === 'undefined') return;
+  if(S.threeRenderer) return;
+
+  const scene = new THREE.Scene();
+  S.threeScene = scene;
+
+  const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 1000);
+  camera.position.z = 7;
+  S.threeCamera = camera;
+
+  const renderer = new THREE.WebGLRenderer({canvas:threeCV, alpha:true, antialias:true});
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setClearColor(0x000000, 0);
+  S.threeRenderer = renderer;
+
+  // Lighting
+  const amb = new THREE.AmbientLight(0xffffff, 0.4);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0x00ffb4, 1.2);
+  dir.position.set(5,8,5);
+  scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(0x00d4ff, 0.8);
+  dir2.position.set(-5,-3,3);
+  scene.add(dir2);
+  const ptLight = new THREE.PointLight(0xb060ff, 1.5, 20);
+  ptLight.position.set(0,0,5);
+  scene.add(ptLight);
+
+  // Create objects
+  S.threeObj = createThreeObjects(scene);
+
+  // Grid
+  const gridHelper = new THREE.GridHelper(20, 20, 0x111133, 0x111133);
+  gridHelper.position.y = -3;
+  scene.add(gridHelper);
+}
+
+function createThreeObjects(scene){
+  const objs = [];
+  const configs = [
+    {type:'cube', x:-2, y:0.5, color:0x00ffb4},
+    {type:'cube', x:2,  y:-0.5,color:0x00d4ff},
+    {type:'sphere',x:0, y:1,   color:0xb060ff},
+    {type:'sphere',x:-3,y:-1,  color:0xff4080},
+    {type:'cube', x:3, y:1,   color:0xffcc00},
+  ];
+  for(const cfg of configs){
+    let geo, mat;
+    if(cfg.type==='cube'){
+      geo = new THREE.BoxGeometry(1.2,1.2,1.2);
+    } else {
+      geo = new THREE.SphereGeometry(0.75,32,32);
+    }
+    mat = new THREE.MeshPhongMaterial({
+      color:cfg.color, emissive:cfg.color, emissiveIntensity:0.15,
+      transparent:true, opacity:0.9, shininess:120,
+      wireframe:false
+    });
+    // Wireframe overlay
+    const wfGeo = cfg.type==='cube' ? new THREE.BoxGeometry(1.25,1.25,1.25) : new THREE.SphereGeometry(0.78,16,16);
+    const wfMat = new THREE.MeshBasicMaterial({color:cfg.color, wireframe:true, transparent:true, opacity:0.25});
+    const wf = new THREE.Mesh(wfGeo, wfMat);
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(cfg.x, cfg.y, 0);
+    mesh.add(wf);
+    scene.add(mesh);
+    objs.push({
+      mesh, type:cfg.type, color:cfg.color,
+      baseX:cfg.x, baseY:cfg.y,
+      vx:0, vy:0, vz:0,
+      rx:0, ry:0, rz:0,
+      scale:1, targetScale:1,
+      grabbed:false, grabHand:-1
+    });
+  }
+  return objs;
+}
+
+// 3D gesture state
+const g3 = {
+  prevPinch: [Infinity,Infinity],
+  prevPalm: [null,null],
+  grabbing: [false,false],
+  lastFingers: [0,0],
+  rotateMode: false
+};
+
+function renderTab1(){
+  if(!S.threeRenderer || !S.threeObj) return;
+  ctxOver.clearRect(0,0,W,H);
+
+  const dt = 0.016;
+  const objs = S.threeObj;
+
+  for(let hi=0; hi<S.handsData.length; hi++){
+    const lm = S.handsData[hi];
+    const fingers = countFingers(lm);
+    const pd = pinchDist(lm);
+    const isPinching = pd < 45;
+    const palm = palmCenter(lm);
+    const palmSmooth = smoothPt(S.handBufs, `p3_${hi}`, palm, 0.4);
+
+    // Map palm position to 3D space
+    const px3 = ((palmSmooth.x/W)-0.5)*12;
+    const py3 = -((palmSmooth.y/H)-0.5)*8;
+
+    // Draw hand skeleton on overlay
+    drawHandSkeleton(ctxOver, lm, hi, 0.8);
+
+    g3.prevPinch[hi] = pd;
+
+    for(const obj of objs){
+      const ox = obj.mesh.position.x, oy = obj.mesh.position.y;
+      const screenX = (ox/12+0.5)*W, screenY = (-oy/8+0.5)*H;
+      const d = dist2({x:palmSmooth.x,y:palmSmooth.y},{x:screenX,y:screenY});
+
+      if(isPinching && d < 100 && !obj.grabbed){
+        // Grab
+        obj.grabbed = true;
+        obj.grabHand = hi;
+      }
+      if(!isPinching && obj.grabHand===hi){
+        obj.grabbed = false;
+        obj.grabHand = -1;
+      }
+
+      if(obj.grabbed && obj.grabHand===hi){
+        // Move object
+        obj.mesh.position.x = lerp(obj.mesh.position.x, px3, 0.25);
+        obj.mesh.position.y = lerp(obj.mesh.position.y, py3, 0.25);
+        // Rotate with finger count
+        obj.mesh.rotation.y += 0.06;
+        obj.mesh.rotation.x += 0.02;
+        setGestureLabel('GRABBED');
+      }
+    }
+
+    // Pinch to scale: two-hand pinch
+    if(S.handsData.length===2){
+      const p0 = palmCenter(S.handsData[0]);
+      const p1 = palmCenter(S.handsData[1]);
+      const pd0 = pinchDist(S.handsData[0]);
+      const pd1 = pinchDist(S.handsData[1]);
+      if(pd0<50 && pd1<50){
+        const twoHandDist = dist2(p0,p1);
+        for(const obj of objs){
+          obj.targetScale = clamp(twoHandDist/200, 0.3, 3.5);
+        }
+        setGestureLabel('SCALE ↔');
+      }
+    }
+
+    // Rotate gesture: two-finger point
+    if(fingers===2 && !isPinching){
+      for(const obj of objs){
+        obj.mesh.rotation.y += 0.04 * (hi===0 ? 1 : -1);
+      }
+      setGestureLabel('ROTATE ↻');
+    }
+  }
+
+  // Animate objects
+  for(const obj of objs){
+    if(!obj.grabbed){
+      // Float back toward base Y slowly
+      obj.mesh.position.y = lerp(obj.mesh.position.y, obj.baseY, 0.01);
+      obj.mesh.rotation.y += 0.008;
+      obj.mesh.rotation.x += 0.004;
+    }
+    obj.scale = lerp(obj.scale, obj.targetScale, 0.08);
+    obj.mesh.scale.setScalar(obj.scale);
+  }
+
+  S.threeRenderer.render(S.threeScene, S.threeCamera);
+}
+
+let gLabelTimer = null;
+function setGestureLabel(txt){
+  gestureLabel.textContent = txt;
+  gestureLabel.style.display = 'block';
+  if(gLabelTimer) clearTimeout(gLabelTimer);
+  gLabelTimer = setTimeout(()=>{ gestureLabel.style.display='none'; }, 1000);
+}
+
+// Tab 1 controls
+document.getElementById('obj-cube').addEventListener('click',function(){
+  toggleObjType('cube'); setActive(this,'ctrl-tab1');
+});
+document.getElementById('obj-sphere').addEventListener('click',function(){
+  toggleObjType('sphere'); setActive(this,'ctrl-tab1');
+});
+document.getElementById('obj-all').addEventListener('click',function(){
+  if(S.threeObj) S.threeObj.forEach(o=>o.mesh.visible=true);
+  setActive(this,'ctrl-tab1');
+});
+document.getElementById('reset-3d').addEventListener('click',()=>{
+  if(S.threeObj){
+    S.threeObj.forEach(o=>{
+      o.mesh.position.set(o.baseX,o.baseY,0);
+      o.mesh.rotation.set(0,0,0);
+      o.scale=1; o.targetScale=1; o.mesh.scale.setScalar(1);
+      o.grabbed=false;
+    });
+  }
+});
+
+function toggleObjType(type){
+  if(!S.threeObj) return;
+  S.threeObj.forEach(o=>{ o.mesh.visible = (o.type===type); });
+}
+
+function setActive(el, parentId){
+  document.getElementById(parentId).querySelectorAll('.ctrl-btn:not(.danger)').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ─── TAB 2: BODY TRACKING ─────────────────────────────────────────────────
+
+let auraHue = 0;
+let auraParticles = [];
+
+function spawnAuraParticle(x,y,hue){
+  auraParticles.push({x,y,vx:(Math.random()-0.5)*2.5,vy:(Math.random()-0.5)*2.5-0.5,life:1,hue,r:2+Math.random()*3});
+}
+
+// Toggle controls
+['show-skeleton','show-aura','show-labels'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(){
+    const map={
+      'show-skeleton':'showSkeleton','show-aura':'showAura','show-labels':'showLabels'
+    };
+    S[map[id]] = !S[map[id]];
+    this.classList.toggle('active', S[map[id]]);
+  });
+});
+
+const BODY_LABELS = {
+  0:'NOSE',11:'L.SHOULDER',12:'R.SHOULDER',
+  13:'L.ELBOW',14:'R.ELBOW',15:'L.WRIST',16:'R.WRIST',
+  23:'L.HIP',24:'R.HIP',25:'L.KNEE',26:'R.KNEE',
+  27:'L.ANKLE',28:'R.ANKLE'
+};
+
+function renderTab2(){
+  ctxBg.clearRect(0,0,W,H);
+  ctxOver.clearRect(0,0,W,H);
+  auraHue = (auraHue+0.4)%360;
+
+  if(S.poseData){
+    const lms = S.poseData;
+
+    if(S.showAura){
+      // Draw glowing body skeleton
+      for(const [a,b] of POSE_CONNECTIONS){
+        if(!lms[a]||!lms[b]) continue;
+        if((lms[a].visibility||0)<0.35||(lms[b].visibility||0)<0.35) continue;
+        const pa = pLM(lms,a), pb = pLM(lms,b);
+        const hA=getSegmentHue(a), hB=getSegmentHue(b);
+        const midHue=(hA+hB)/2;
+
+        // Outer glow
+        ctxBg.beginPath();
+        ctxBg.moveTo(pa.x,pa.y); ctxBg.lineTo(pb.x,pb.y);
+        ctxBg.strokeStyle=`hsla(${midHue},90%,65%,0.18)`;
+        ctxBg.lineWidth=18; ctxBg.lineCap='round'; ctxBg.stroke();
+
+        // Mid glow
+        ctxBg.beginPath();
+        ctxBg.moveTo(pa.x,pa.y); ctxBg.lineTo(pb.x,pb.y);
+        ctxBg.strokeStyle=`hsla(${midHue},90%,65%,0.35)`;
+        ctxBg.lineWidth=7; ctxBg.stroke();
+
+        // Core line
+        const grad = ctxBg.createLinearGradient(pa.x,pa.y,pb.x,pb.y);
+        grad.addColorStop(0,`hsla(${hA},100%,75%,0.9)`);
+        grad.addColorStop(1,`hsla(${hB},100%,75%,0.9)`);
+        ctxBg.beginPath();
+        ctxBg.moveTo(pa.x,pa.y); ctxBg.lineTo(pb.x,pb.y);
+        ctxBg.strokeStyle=grad; ctxBg.lineWidth=2.5; ctxBg.stroke();
+
+        // Particles
+        if(Math.random()<0.25){
+          const t=Math.random();
+          spawnAuraParticle(lerp(pa.x,pb.x,t),lerp(pa.y,pb.y,t),(hA+hB)/2);
+        }
+      }
+
+      // Joint orbs
+      for(let i=0;i<lms.length;i++){
+        if(!lms[i]||(lms[i].visibility||0)<0.35) continue;
+        const p=pLM(lms,i);
+        const hue=getSegmentHue(i);
+        const isKey=[0,11,12,23,24].includes(i);
+        const r=isKey?9:6;
+        const grd=ctxBg.createRadialGradient(p.x,p.y,0,p.x,p.y,r*2.5);
+        grd.addColorStop(0,`hsla(${hue},100%,95%,0.95)`);
+        grd.addColorStop(0.5,`hsla(${hue},90%,65%,0.55)`);
+        grd.addColorStop(1,`hsla(${hue},80%,50%,0)`);
+        ctxBg.beginPath();
+        ctxBg.arc(p.x,p.y,r*2.5,0,Math.PI*2);
+        ctxBg.fillStyle=grd; ctxBg.fill();
+      }
+    }
+
+    if(S.showSkeleton){
+      // Clean wireframe skeleton
+      for(const [a,b] of POSE_CONNECTIONS){
+        if(!lms[a]||!lms[b]) continue;
+        if((lms[a].visibility||0)<0.35||(lms[b].visibility||0)<0.35) continue;
+        const pa=pLM(lms,a), pb=pLM(lms,b);
+        const hue=getSegmentHue(a);
+        ctxOver.beginPath(); ctxOver.moveTo(pa.x,pa.y); ctxOver.lineTo(pb.x,pb.y);
+        ctxOver.strokeStyle=`hsla(${hue},80%,75%,0.5)`;
+        ctxOver.lineWidth=1.5; ctxOver.lineCap='round'; ctxOver.stroke();
+      }
+      for(let i=0;i<lms.length;i++){
+        if(!lms[i]||(lms[i].visibility||0)<0.35) continue;
+        const p=pLM(lms,i);
+        ctxOver.beginPath();
+        ctxOver.arc(p.x,p.y,3.5,0,Math.PI*2);
+        ctxOver.fillStyle=`hsla(${getSegmentHue(i)},100%,80%,0.8)`;
+        ctxOver.fill();
+      }
+    }
+
+    if(S.showLabels){
+      ctxOver.font='bold 9px Courier New';
+      for(const [idx,label] of Object.entries(BODY_LABELS)){
+        const lm=lms[idx];
+        if(!lm||(lm.visibility||0)<0.45) continue;
+        const p=pLM(lms,idx);
+        const hue=getSegmentHue(parseInt(idx));
+        ctxOver.fillStyle=`hsla(${hue},100%,85%,0.85)`;
+        ctxOver.fillText(label, p.x+6, p.y-4);
+      }
+    }
+  }
+
+  // Hand aura on body tab
+  for(let hi=0;hi<S.handsData.length;hi++) drawHandAuraBody(S.handsData[hi],hi);
+
+  // Particles
+  auraParticles = auraParticles.filter(p=>p.life>0.02);
+  for(const p of auraParticles){
+    p.x+=p.vx; p.y+=p.vy; p.vy-=0.04; p.vx*=0.97; p.life*=0.92;
+    ctxBg.beginPath();
+    ctxBg.arc(p.x,p.y,p.r*p.life,0,Math.PI*2);
+    ctxBg.fillStyle=`hsla(${p.hue},90%,70%,${p.life*0.65})`;
+    ctxBg.fill();
+  }
+}
+
+function drawHandAuraBody(lm,hi){
+  const hue=hi===0?180:300;
+  const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+    [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
+    [13,17],[17,18],[18,19],[19,20],[0,17]];
+  for(const [a,b] of CONN){
+    const pa=hLM(lm,a), pb=hLM(lm,b);
+    ctxBg.beginPath(); ctxBg.moveTo(pa.x,pa.y); ctxBg.lineTo(pb.x,pb.y);
+    ctxBg.strokeStyle=`hsla(${hue},90%,70%,0.5)`;
+    ctxBg.lineWidth=7; ctxBg.lineCap='round'; ctxBg.stroke();
+    ctxBg.strokeStyle=`hsla(${hue},100%,88%,0.85)`;
+    ctxBg.lineWidth=2; ctxBg.stroke();
+  }
+}
+
+// ─── HAND SKELETON (used by multiple tabs) ────────────────────────────────
+
+const HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function drawHandSkeleton(ctx, lm, hi, alpha=0.8){
+  const hue = hi===0 ? 180 : 300;
+  ctx.strokeStyle=`hsla(${hue},80%,70%,${alpha*0.6})`;
+  ctx.lineWidth=1.8; ctx.lineCap='round';
+  for(const [a,b] of HAND_CONN){
+    const pa=hLM(lm,a), pb=hLM(lm,b);
+    ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+  }
+  for(let i=0;i<21;i++){
+    const p=hLM(lm,i);
+    const isTip=[4,8,12,16,20].includes(i);
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,isTip?5.5:3,0,Math.PI*2);
+    ctx.fillStyle=isTip?`hsla(${hue},100%,82%,${alpha})`:`hsla(${hue},70%,72%,${alpha*0.85})`;
+    ctx.fill();
+  }
+}
+
+// ─── MAIN RENDER LOOP ─────────────────────────────────────────────────────
+
+function renderLoop(){
+  const now = performance.now();
+  const dt = now - S.lastFrame;
+  S.lastFrame = now;
+  S.fpsArr.push(1000/dt);
+  if(S.fpsArr.length>30) S.fpsArr.shift();
+  const fps = Math.round(S.fpsArr.reduce((a,b)=>a+b,0)/S.fpsArr.length);
+  fpsBadge.textContent = fps + ' FPS';
+
+  if(S.activeTab===0) renderTab0();
+  else if(S.activeTab===1) renderTab1();
+  else if(S.activeTab===2) renderTab2();
+
+  requestAnimationFrame(renderLoop);
+}
+
+// ─── MEDIAPIPE CALLBACKS ──────────────────────────────────────────────────
+
+function onHandResults(r){
+  S.handsData = r.multiHandLandmarks || [];
+  updateStatus();
+}
+function onPoseResults(r){
+  S.poseData = (r.poseLandmarks && r.poseLandmarks.length>0) ? r.poseLandmarks : null;
+  updateStatus();
+}
+
+// ─── SCRIPT LOADER ───────────────────────────────────────────────────────
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=src; s.onload=res; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+}
+
+function setLoad(pct, msg){
+  loadFill.style.width = pct+'%';
+  loadPct.textContent = pct+'%';
+  if(msg) loadMsg.textContent = msg;
+}
+
+// ─── CAMERA FLIP ─────────────────────────────────────────────────────────
+
+let handsModel=null, poseModel=null, camUtil=null;
+
+document.getElementById('cam-flip').addEventListener('click', async ()=>{
+  if(!S.isRunning) return;
+  S.facingMode = S.facingMode==='user' ? 'environment' : 'user';
+  if(S.stream) S.stream.getTracks().forEach(t=>t.stop());
+  try{
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:S.facingMode,width:{ideal:1280},height:{ideal:720}},audio:false
+    });
+    vid.srcObject = S.stream;
+    await vid.play();
+    // Restart camera util
+    if(camUtil) camUtil.stop();
+    camUtil = startCameraUtil();
+  }catch(e){ console.warn('Flip failed',e); }
+});
+
+function startCameraUtil(){
+  const isMobile = window.innerWidth<768;
+  const camW=isMobile?480:640, camH=isMobile?360:480;
+  let fc=0;
+  const cam=new window.Camera(vid,{
+    onFrame:async()=>{
+      await handsModel.send({image:vid});
+      if(fc%2===0) await poseModel.send({image:vid});
+      fc++;
+    },
+    width:camW, height:camH
+  });
+  cam.start();
+  return cam;
+}
+
+// ─── STARTUP ─────────────────────────────────────────────────────────────
+
+async function startCamera(){
+  startScr.style.display='none';
+  loadScr.style.display='flex';
+  setLoad(5,'REQUESTING CAMERA...');
+
+  try{
+    try{
+      S.stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false
+      });
+    }catch(e){
+      S.stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+    }
+  }catch(e){
+    loadMsg.textContent='CAMERA DENIED — REFRESH AND ALLOW.';
+    return;
+  }
+
+  vid.srcObject=S.stream;
+  await new Promise(r=>{vid.onloadedmetadata=r;});
+  await vid.play();
+  setLoad(15,'LOADING THREE.JS...');
+
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+  setLoad(30,'LOADING MEDIAPIPE HANDS...');
+
+  await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js');
+  setLoad(50,'LOADING MEDIAPIPE POSE...');
+
+  await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js');
+  setLoad(70,'LOADING CAMERA UTILS...');
+
+  await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js');
+  setLoad(85,'INITIALIZING MODELS...');
+
+  handsModel = new window.Hands({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}`
+  });
+  handsModel.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:0.6,minTrackingConfidence:0.5});
+  handsModel.onResults(onHandResults);
+
+  poseModel = new window.Pose({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${f}`
+  });
+  poseModel.setOptions({
+    modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,
+    smoothSegmentation:false,minDetectionConfidence:0.55,minTrackingConfidence:0.5
+  });
+  poseModel.onResults(onPoseResults);
+
+  setLoad(93,'INITIALIZING THREE.JS...');
+  initThree();
+  threeCV.style.display = 'none'; // hidden until Tab 1
+
+  setLoad(98,'WARMING UP...');
+  camUtil = startCameraUtil();
+
+  await new Promise(r=>setTimeout(r,900));
+  setLoad(100,'');
+  await new Promise(r=>setTimeout(r,350));
+  loadScr.style.display='none';
+
+  resize();
+  S.isRunning=true;
+
+  // Set gesture hints
+  gestureHint.textContent='✏ INDEX FINGER = DRAW\n👌 PINCH = STOP DRAW';
+
+  renderLoop();
+}
+
+document.getElementById('start-btn').addEventListener('click', startCamera);
+
+})();
+</script>
+</body>
+</html>
